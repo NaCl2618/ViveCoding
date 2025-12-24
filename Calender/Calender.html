@@ -1,0 +1,429 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>A4 단월 달력 템플릿 (가로/세로 인쇄, 메모 제거)</title>
+<style>
+  :root {
+    --page-padding: 12mm;     /* 인쇄 시 안전 여백 */
+    --grid-gap: 2mm;          /* 칸 사이 간격 */
+    --border-width: 0.6mm;    /* 그리드 테두리 */
+    --header-font: 22pt;      /* 상단 월/연도 폰트 크기 (축소) */
+    --weekday-font: 11pt;     /* 요일 헤더 폰트 크기 */
+    --day-font: 13pt;         /* 달력 날짜 폰트 크기 */
+    --accent: #005BBB;        /* 포인트 색 (파란색) */
+    --holiday: #D0021B;       /* 공휴일 표시 색 (빨간색) */
+    --text: #111;
+    --line: #333;
+    --screen-max: 1200px;     /* 화면에서 보기 너비 제한 */
+    --font-family: "Pretendard","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #f4f6f8;
+    color: var(--text);
+    font-family: var(--font-family);
+  }
+
+  /* 화면용 컨테이너 */
+  .wrap {
+    max-width: var(--screen-max);
+    margin: 24px auto;
+    padding: 0 16px 24px;
+  }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 16px;
+  }
+  .toolbar label { font-size: 12px; color: #555; }
+  .toolbar input, .toolbar select, .toolbar button {
+    width: 100%;
+    font-size: 14px;
+    padding: 8px;
+    border: 1px solid #cfd8dc;
+    border-radius: 8px;
+    background: #fff;
+    box-sizing: border-box;
+  }
+  .toolbar button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+  }
+  .toolbar button:hover { filter: brightness(1.05); }
+
+  /* 인쇄 페이지 프레임 */
+  .page {
+    background: #fff;
+    margin: 0 auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    aspect-ratio: 297 / 210; /* 화면 미리보기 기본 가로(A4) */
+    width: 100%;
+    max-width: var(--screen-max);
+    display: flex;
+    flex-direction: column;
+  }
+  .page[data-orientation="portrait"] { aspect-ratio: 210/297; }
+
+  /* 내부 레이아웃: 제목 + 요일 + 달력 */
+  .content {
+    padding: var(--page-padding);
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    gap: 4mm; /* 위로 당기기 위해 간격 축소 */
+    box-sizing: border-box;
+  }
+
+  /* 상단 헤더 (월/연도만) */
+  .top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    /* 메모 제거: 좌우 공간을 최소화 */
+    margin-bottom: 0;
+  }
+  .month-title {
+    font-size: var(--header-font);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    line-height: 1.1;
+  }
+
+  /* 요일 헤더 */
+  .weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: var(--grid-gap);
+  }
+  .weekday {
+    text-align: center;
+    font-size: var(--weekday-font);
+    font-weight: 600;
+    padding: 3mm 0;            /* 높이 약간 축소 */
+    border-bottom: 2px solid #e0e0e0;
+  }
+  .weekday.sun { color: var(--holiday); }
+  .weekday.sat { color: #1976D2; }
+
+  /* 달력 그리드 */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: 1fr;
+    gap: var(--grid-gap);
+  }
+
+  .cell {
+    border: var(--border-width) solid var(--line);
+    border-radius: 6px;
+    padding: 3.5mm; /* 내부 패딩 소폭 축소로 그리드 위로 */
+    display: grid;
+    grid-template-rows: auto 1fr;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .date-num {
+    font-size: var(--day-font);
+    font-weight: 700;
+  }
+  .date-num.sun { color: var(--holiday); }
+  .date-num.sat { color: #1976D2; }
+  .tags {
+    position: absolute;
+    top: 3mm;
+    right: 3mm;
+    display: flex;
+    gap: 2mm;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 9pt;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #e8f0fe;
+    color: #174ea6;
+    border: 1px solid #c5d5fb;
+  }
+
+  /* 인쇄 최적화 (A4 한 페이지 완전 고정) */
+  @media print {
+    :root {
+      --page-padding: 10mm;     /* 안전 여백 */
+      --grid-gap: 2mm;
+      --border-width: 0.5mm;
+      --header-font: 20pt;      /* 제목 더 컴팩트 */
+      --weekday-font: 10.5pt;
+      --day-font: 12.5pt;
+    }
+
+    /* 인쇄에서 페이지 박스 크기 정확히 mm로 고정 */
+    .page {
+      box-shadow: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: auto;
+      height: auto;
+      aspect-ratio: auto;
+    }
+
+    /* 가로 A4: 297×210mm */
+    body.print-landscape .page {
+      width: 297mm;
+      height: 210mm;
+    }
+    /* 세로 A4: 210×297mm */
+    body.print-portrait .page {
+      width: 210mm;
+      height: 297mm;
+    }
+
+    /* 실제 컨텐츠 패딩/간격 최적화 */
+    .content {
+      padding: var(--page-padding);
+      height: 100%;
+      box-sizing: border-box;
+      gap: 4mm; /* 더 촘촘하게 */
+    }
+
+    /* 인쇄 때 툴바/설명 숨김 */
+    .wrap, .toolbar { display: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 style="margin:0 0 8px;">A4 단월 달력 인쇄 템플릿 (메모 제거)</h1>
+    <p style="margin:0 0 16px;color:#555;">
+      연도/월과 방향(가로/세로)을 선택한 뒤 인쇄하세요.
+      <strong>A4 / 여백 없음 / 배경 그래픽 인쇄 / 헤더-푸터 끄기</strong>를 권장합니다.
+    </p>
+
+    <div class="toolbar">
+      <div>
+        <label for="year">연도</label>
+        <input id="year" type="number" min="1900" max="2100" />
+      </div>
+      <div>
+        <label for="month">월</label>
+        <select id="month"></select>
+      </div>
+      <div>
+        <label for="orientation">방향</label>
+        <select id="orientation">
+          <option value="landscape" selected>가로 (A4)</option>
+          <option value="portrait">세로 (A4)</option>
+        </select>
+      </div>
+      <div>
+        <label for="startMonday">주 시작 요일</label>
+        <select id="startMonday">
+          <option value="true" selected>월요일 시작</option>
+          <option value="false">일요일 시작</option>
+        </select>
+      </div>
+      <div>
+        <label for="borderWidth">테두리 두께 (mm)</label>
+        <input id="borderWidth" type="number" min="0.2" max="1.5" step="0.1" value="0.6" />
+      </div>
+      <div style="grid-column: span 5;">
+        <label for="holidays">공휴일/중요일 (YYYY-MM-DD:이름, 쉼표 구분)</label>
+        <input id="holidays" type="text" placeholder="2025-01-01:신정, 2025-02-14:발렌타인데이" />
+      </div>
+      <div style="grid-column: span 1;">
+        <label>&nbsp;</label>
+        <button id="apply">적용 / 새로고침</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="page" class="page" data-orientation="landscape">
+    <div class="content">
+      <div class="top">
+        <div class="month-title" id="monthTitle">2025년 12월</div>
+      </div>
+
+      <div class="weekday-row" id="weekdayRow"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+
+<script>
+  // 유틸: 날짜 포맷/계산
+  function getDaysInMonth(year, month) { // month: 1-12
+    return new Date(year, month, 0).getDate();
+  }
+  function getFirstDayIndex(year, month) { // 0=일 ~ 6=토
+    return new Date(year, month - 1, 1).getDay();
+  }
+  function pad(n) { return n.toString().padStart(2, '0'); }
+
+  // 초기 세팅
+  const now = new Date();
+  const yearEl = document.getElementById('year');
+  const monthEl = document.getElementById('month');
+  const orientationEl = document.getElementById('orientation');
+  const startMondayEl = document.getElementById('startMonday');
+  const borderWidthEl = document.getElementById('borderWidth');
+  const holidaysEl = document.getElementById('holidays');
+  const applyBtn = document.getElementById('apply');
+
+  const pageEl = document.getElementById('page');
+  const monthTitleEl = document.getElementById('monthTitle');
+  const weekdayRowEl = document.getElementById('weekdayRow');
+  const gridEl = document.getElementById('grid');
+
+  // 월 선택 옵션 생성
+  const monthNames = Array.from({length:12}, (_,i)=>`${i+1}월`);
+  monthNames.forEach((name, i) => {
+    const opt = document.createElement('option');
+    opt.value = i+1;
+    opt.textContent = name;
+    monthEl.appendChild(opt);
+  });
+
+  // 기본 값: 오늘
+  yearEl.value = now.getFullYear();
+  monthEl.value = now.getMonth() + 1;
+
+  // 공휴일 파싱
+  function parseHolidayInput(txt) {
+    const map = new Map();
+    (txt || "").split(",").map(s=>s.trim()).filter(Boolean).forEach(pair=>{
+      const idx = pair.indexOf(":");
+      if (idx > 0) {
+        const date = pair.slice(0, idx).trim();
+        const name = pair.slice(idx+1).trim();
+        map.set(date, name);
+      }
+    });
+    return map;
+  }
+
+  function buildWeekdayHeader(startMonday) {
+    const weekNamesSunFirst = ["일","월","화","수","목","금","토"];
+    const weekNamesMonFirst = ["월","화","수","목","금","토","일"];
+    const names = startMonday ? weekNamesMonFirst : weekNamesSunFirst;
+
+    weekdayRowEl.innerHTML = "";
+    names.forEach((n, idx) => {
+      const div = document.createElement('div');
+      div.className = "weekday";
+      const isSun = (!startMonday && idx===0) || (startMonday && idx===6);
+      const isSat = (!startMonday && idx===6) || (startMonday && idx===5);
+      if (isSun) div.classList.add('sun');
+      if (isSat) div.classList.add('sat');
+      div.textContent = n;
+      weekdayRowEl.appendChild(div);
+    });
+  }
+
+  function buildCalendar(year, month, startMonday, holidaysMap) {
+    gridEl.innerHTML = "";
+
+    const days = getDaysInMonth(year, month);
+    const firstDay = getFirstDayIndex(year, month); // 0=일 ~ 6=토
+
+    // 그리드 시작 오프셋 계산
+    const offset = startMonday ? ((firstDay + 6) % 7) : firstDay;
+
+    // 총 칸 수(5~6주)
+    const totalCells = Math.ceil((offset + days) / 7) * 7;
+
+    for (let i = 0; i < totalCells; i++) {
+      const cell = document.createElement('div');
+      cell.className = "cell";
+
+      const dayNumber = i - offset + 1;
+
+      let dateNum = document.createElement('div');
+      dateNum.className = "date-num";
+      let tags = document.createElement('div');
+      tags.className = "tags";
+
+      if (dayNumber >= 1 && dayNumber <= days) {
+        // 요일 계산: 화면 헤더와 일치하도록
+        const weekday = (startMonday ? ((i % 7) + 1) % 7 : (i % 7));
+        if (weekday === 0) dateNum.classList.add('sun');
+        if (weekday === 6) dateNum.classList.add('sat');
+
+        dateNum.textContent = dayNumber;
+
+        // 공휴일 태그
+        const dateStr = `${year}-${pad(month)}-${pad(dayNumber)}`;
+        if (holidaysMap.has(dateStr)) {
+          const tag = document.createElement('span');
+          tag.className = "tag";
+          tag.textContent = holidaysMap.get(dateStr);
+          tags.appendChild(tag);
+          // 공휴일 날짜 색 강조
+          dateNum.classList.add('sun');
+        }
+      } else {
+        dateNum.textContent = ""; // 빈 칸
+      }
+
+      cell.appendChild(dateNum);
+      cell.appendChild(tags);
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function render() {
+    const year = parseInt(yearEl.value, 10);
+    const month = parseInt(monthEl.value, 10);
+    const startMonday = (startMondayEl.value === "true");
+    const orientation = orientationEl.value;
+
+    // 방향 설정 (가로/세로)
+    pageEl.setAttribute("data-orientation", orientation);
+
+    // 인쇄용 body 클래스 토글 (A4 size 분기용)
+    document.body.classList.toggle("print-landscape", orientation === "landscape");
+    document.body.classList.toggle("print-portrait", orientation === "portrait");
+
+    // 스타일 변수 업데이트
+    const bw = Math.max(0.2, Math.min(1.5, parseFloat(borderWidthEl.value || "0.6")));
+    document.documentElement.style.setProperty('--border-width', `${bw}mm`);
+
+    // 헤더 제목
+    const titleText = `${year}년 ${month}월`;
+    document.getElementById('monthTitle').textContent = titleText;
+
+    // 요일 헤더 / 달력 그리드
+    buildWeekdayHeader(startMonday);
+    const holidaysMap = parseHolidayInput(holidaysEl.value);
+    buildCalendar(year, month, startMonday, holidaysMap);
+  }
+
+  // 초기 렌더 및 이벤트
+  const nowDate = new Date();
+  yearEl.value = nowDate.getFullYear();
+  monthEl.value = nowDate.getMonth() + 1;
+
+  applyBtn.addEventListener('click', render);
+  yearEl.addEventListener('change', render);
+  monthEl.addEventListener('change', render);
+  orientationEl.addEventListener('change', render);
+  startMondayEl.addEventListener('change', render);
+  borderWidthEl.addEventListener('input', render);
+  holidaysEl.addEventListener('input', render);
+
+  // 초기 렌더
+  render();
+
+  // 인쇄 전/후 훅 (필요 시 추가 스타일 조정 가능)
+  window.addEventListener('beforeprint', () => {});
+  window.addEventListener('afterprint', () => {});
+</script>
+</body>
+</html>
